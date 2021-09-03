@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 
 import torch
 import torch.nn as nn
@@ -89,11 +90,12 @@ def test_seq2seq(net, data_iter, device, loss):
     net.eval()
     sum_loss = 0.
     for batch in data_iter:
-        X, X_vaild_len, Y, Y_valid_len = [x.to(device) for x in batch]
+        X, Y = [x.to(device) for x in batch]
         # 训练过程采用teacher force
         dec_input = Y[:, :-1]
         Y_hat, _ = net(X, dec_input)
-        l = loss(Y_hat, Y[:, 1:], Y_valid_len)
+        Y_hat = Y_hat.permute(0, 2, 1)
+        l = loss(Y_hat, Y[:, 1:])
         sum_loss += l.sum().item()
     return sum_loss
 
@@ -111,34 +113,37 @@ def train_seq2seq(net, train_data_iter, test_data_iter, lr, num_epochs, device, 
     net.to(device)
 
     optimizer = torch.optim.Adam(net.parameters(), lr=lr)
-    loss = MaskedSoftmaxCEloss()
+    # loss = MaskedSoftmaxCEloss()
+    loss = nn.CrossEntropyLoss(ignore_index=word2id["<pad>"])
     best_loss = float('inf')
 
     for epoch in range(num_epochs):
         net.train()
         for i, batch in enumerate(train_data_iter):
             optimizer.zero_grad()
-            X, X_vaild_len, Y, Y_valid_len = [x.to(device) for x in batch]
+            X, Y = [x.to(device) for x in batch]
             # 训练过程采用teacher force
             dec_input = Y[:, :-1]
             Y_hat, _ = net(X, dec_input)
-            l = loss(Y_hat, Y[:, 1:], Y_valid_len)
+            Y_hat = Y_hat.permute(0, 2, 1)
+            l = loss(Y_hat, Y[:, 1:])
             l.sum().backward()
             optimizer.step()
 
             if i % 100 == 0:
-                print("epoch: {}  step:{}  loss:{}".format(epoch, i, l.sum().item()))
+                print("TRAIN: epoch: {}  step:{}  loss:{}".format(epoch, i, l.sum().item()))
 
         test_loss = test_seq2seq(net, test_data_iter, device, loss)
+        print("TEST: epoch: {}  loss: {}".format(epoch, test_loss))
         if test_loss < best_loss:
             torch.save(net.state_dict(), model_save_path)
             best_loss = test_loss
 
 
 if __name__ == '__main__':
-    embed_size, num_hiddens, num_layers, dropout = 128, 128, 2, 0.5
-    batch_size = 64
-    lr, num_epochs, device = 0.005, 10, "cuda:0" if torch.cuda.is_available() else "cpu"
+    embed_size, num_hiddens, num_layers, dropout = 128, 128, 2, 0.1
+    batch_size, lr, num_epochs, device = 64, 0.01, 10, "cuda:0" if torch.cuda.is_available() else "cpu"
+
     model_save_path = "./model/model.pth"
 
     word2id, id2word, vocab_size = get_vocab()
@@ -151,7 +156,12 @@ if __name__ == '__main__':
 
     encoder = Encoder(vocab_size, embed_size, num_hiddens, num_layers, dropout)
     decoder = Decoder(vocab_size, embed_size, num_hiddens, num_layers, dropout)
+
     net = EncoderDecoder(encoder, decoder)
+
+    # 加载已经训练好的模型，继续训练
+    if os.path.exists(model_save_path):
+        net.load_state_dict(torch.load(model_save_path))
 
     train_seq2seq(net, train_dataloader, test_dataloader, lr, num_epochs, device, model_save_path)
 
