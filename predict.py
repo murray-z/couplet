@@ -13,7 +13,8 @@ word2id, id2word, vocab_size = get_vocab()
 encoder = Encoder(vocab_size, embed_size, num_hiddens, num_layers, dropout)
 decoder = Decoder(vocab_size, embed_size, num_hiddens, num_layers, dropout)
 net = EncoderDecoder(encoder, decoder)
-net.load_state_dict(torch.load(model_save_path))
+map_location = torch.device(device)
+net.load_state_dict(torch.load(model_save_path, map_location=map_location))
 net.eval()
 
 

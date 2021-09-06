@@ -9,7 +9,6 @@ from torch.utils.data import DataLoader
 from data_helper import CoupletDataSet, get_vocab
 
 
-
 WORD2ID, ID2WORD, VOCAB_SIZE = get_vocab()
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 PAD_IDX = WORD2ID["<pad>"]

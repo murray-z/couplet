@@ -108,8 +108,12 @@ def train_seq2seq(net, train_data_iter, test_data_iter, lr, num_epochs, device, 
             for param in m._flat_weights_names:
                 if "weight" in param:
                     nn.init.xavier_uniform_(m._parameters[param])
+    # 加载已经训练好的模型，继续训练
+    if os.path.exists(model_save_path):
+        net.load_state_dict(torch.load(model_save_path))
+    else:
+        net.apply(xavier_init_weights)
 
-    net.apply(xavier_init_weights)
     net.to(device)
 
     optimizer = torch.optim.Adam(net.parameters(), lr=lr)
@@ -142,7 +146,7 @@ def train_seq2seq(net, train_data_iter, test_data_iter, lr, num_epochs, device, 
 
 if __name__ == '__main__':
     embed_size, num_hiddens, num_layers, dropout = 128, 128, 2, 0.1
-    batch_size, lr, num_epochs, device = 64, 0.01, 10, "cuda:0" if torch.cuda.is_available() else "cpu"
+    batch_size, lr, num_epochs, device = 64, 0.005, 100, "cuda:0" if torch.cuda.is_available() else "cpu"
 
     model_save_path = "./model/model.pth"
 
@@ -158,10 +162,6 @@ if __name__ == '__main__':
     decoder = Decoder(vocab_size, embed_size, num_hiddens, num_layers, dropout)
 
     net = EncoderDecoder(encoder, decoder)
-
-    # 加载已经训练好的模型，继续训练
-    if os.path.exists(model_save_path):
-        net.load_state_dict(torch.load(model_save_path))
 
     train_seq2seq(net, train_dataloader, test_dataloader, lr, num_epochs, device, model_save_path)
 
